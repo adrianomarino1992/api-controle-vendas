@@ -1,0 +1,16 @@
+{
+  "name": "caderno",
+  "version": "1.0.0",
+  "main": "Index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "adriano",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@types/node": "^22.5.5",
+    "ts_linq_base": "^1.1.1",
+    "web_api_base": "^6.0.2"
+  }
+}
