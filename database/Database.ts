@@ -1,8 +1,9 @@
 import FileService from 'web_api_base/dist/file/FileService';
 import Path from 'path';
 import { Application } from 'web_api_base';
+import Entity from '../entities/Entity';
 
-export default abstract class Datababase<T>
+export default class Datababase<T extends Entity>
 {
     private _cTor : new(...args: any[]) => T;
     private _dbPath : string;
@@ -59,7 +60,7 @@ export default abstract class Datababase<T>
 
     public async ReadAsync() : Promise<T[]>
     {
-       await this.EnsureStartAsync();
+       await this.EnsureStartAsync();        
 
        if(!await this._fileSystem.FileExistsAsync(this._dbFile))
         return [];
@@ -116,6 +117,11 @@ export default abstract class Datababase<T>
         return newName;
     }
 
+    public async CheckImageAsync(path : string) : Promise<boolean>
+    {
+        return await this._fileSystem.FileExistsAsync(path);
+    }
+
     public async DeleteImageAsync(filePath : string) : Promise<void>
     {
         if(!await this._fileSystem.FileExistsAsync(filePath))
@@ -124,10 +130,32 @@ export default abstract class Datababase<T>
         await this._fileSystem.DeleteAsync(filePath);        
     }
 
-    public abstract AddAsync(obj : T) : Promise<void>;
-    public abstract UpdateAsync(obj : T) : Promise<void>;
-    public abstract DeleteAsync(obj : T) : Promise<void>;
-    public abstract QueryAsync(predicate : (o : T) => boolean) : Promise<T[]>;
+    public async AddAsync(obj: T): Promise<void> 
+    {
+        let list = await this.ReadAsync();
+        if(!obj.Id)
+            obj.CreateId();
+        list.RemoveAll(s => s.Id == obj.Id); 
+        list.Add(obj);
+        await this.SaveAsync(list);
+    }
+
+    public async UpdateAsync(obj: T): Promise<void> 
+    {
+        await this.AddAsync(obj);
+    }
+
+    public async DeleteAsync(obj: T): Promise<void> 
+    {
+        let list = await this.ReadAsync();
+        list.RemoveAll(s => s.Id == obj.Id);        
+        await this.SaveAsync(list);
+    }
+
+    public async QueryAsync(predicate: (o: T) => boolean): Promise<T[]> 
+    {
+        return (await this.ReadAsync()).Where(predicate);
+    }
 
     private GetDateOfArchiving(filePath : string)
     {

@@ -1,7 +1,8 @@
+import MD5 from "md5";
+import Entity from "./Entity";
 
-export default class User 
+export default class User extends Entity
 {
-    public Id : string;
     public Name : string;
     public Login : string;
     public Password : string;
@@ -9,7 +10,7 @@ export default class User
 
     constructor(name: string, login: string, password: string) 
     {         
-        this.Id = `${new Date().getMilliseconds()}_${login}`;
+        super();
         this.Name = name;
         this.Login = login;
         this.Password = password;

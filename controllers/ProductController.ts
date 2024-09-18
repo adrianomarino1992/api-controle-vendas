@@ -1,6 +1,6 @@
 import { ControllerBase, GET, ActionResult, Validate, POST, PUT, DELETE, File } from "web_api_base";
 import Product from "../entities/Product";
-import ProductDatabase from "../database/ProductDatabase";
+import Datababase from "../database/Database";
 
 
 
@@ -8,18 +8,40 @@ import ProductDatabase from "../database/ProductDatabase";
 export default class ProductController extends ControllerBase 
 {
 
-    private _productDatabase: ProductDatabase;
+    private _productDatabase: Datababase<Product>;
 
     constructor() {
         super();
-        this._productDatabase = new ProductDatabase;
+        this._productDatabase = new Datababase(Product);
     }
 
-    @GET('list')
-    public async ListAsync(): Promise<ActionResult> 
+
+
+
+    @GET('list-all')
+    public async ListAllAsync(): Promise<ActionResult> 
     {
-        return this.OK(await this._productDatabase.ReadAsync());
+        return this.OK((await this._productDatabase.ReadAsync()).OrderBy(s => s.Name));
     }
+
+
+
+
+    @GET('list-active')
+    public async ListActiveAsync(): Promise<ActionResult> 
+    {
+        return this.OK((await this._productDatabase.QueryAsync(s => s.Active)).OrderBy(s => s.Name));
+    }
+
+
+
+    @GET('list-inactive')
+    public async ListInactiveAsync(): Promise<ActionResult> 
+    {
+        return this.OK((await this._productDatabase.QueryAsync(s => !s.Active)).OrderBy(s => s.Name));
+    }
+
+    
 
 
     @POST('create')
@@ -31,10 +53,19 @@ export default class ProductController extends ControllerBase
         if(!product.Name || !product.Price)
             return this.BadRequest("O produto deve conter um nome e um preço");
 
+        let exists = (await this._productDatabase.QueryAsync(s => s.Name.toLowerCase() == product.Name.toLowerCase())).FirstOrDefault();
+
+        if(exists)
+            return this.BadRequest(`O produto ${product.Name} já existe`);
+
         await this._productDatabase.AddAsync(product);
 
         return this.NoContent();
     }
+
+
+
+
 
     @PUT('update')
     public async UpdateAsync(product: Product): Promise<ActionResult>
@@ -45,37 +76,60 @@ export default class ProductController extends ControllerBase
         if(!product.Name || !product.Price)
             return this.BadRequest("O produto deve conter um nome e um preço");
 
+        let exists = (await this._productDatabase.QueryAsync(
+            s => s.Name.toLowerCase() == product.Name.toLowerCase() &&
+            s.Id != product.Id
+        )).FirstOrDefault();
+
+        if(exists)
+            return this.BadRequest(`O produto ${product.Name} já existe`);
+
+        exists = (await this._productDatabase.QueryAsync(s => s.Id == product.Id)).FirstOrDefault();
+
+        if(!exists)
+            return this.BadRequest(`O produto ${product.Name} não existe`);
+
         await this._productDatabase.UpdateAsync(product);
 
         return this.NoContent();
     }
 
+
+
+
+
     @DELETE('delete')
-    public async DeleteAsync(productName: string): Promise<ActionResult>
+    public async DeleteAsync(productId: string): Promise<ActionResult>
     {
-        if(!productName)
+        if(!productId)
             return this.BadRequest("Informe um produto");
 
-        let product = (await this._productDatabase.QueryAsync(s => s.Name == productName)).FirstOrDefault();
+        let product = (await this._productDatabase.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
 
         if(!product)
-            return this.NotFound(`O produto ${productName} não existe`);
+            return this.NotFound(`O produto não existe`);
 
-        await this._productDatabase.DeleteAsync(product);
+        product.Active = false;
+
+        await this._productDatabase.UpdateAsync(product);
 
         return this.NoContent();
     }
 
-    @POST('product/img')
-    public async UpdateImageAsync(productName: string, image: File) : Promise<ActionResult>
+
+
+
+
+    @POST('set-image')
+    public async UpdateImageAsync(productId: string, image: File) : Promise<ActionResult>
     {
-        if(!productName)
+        if(!productId)
             return this.BadRequest("Informe um produto");
 
-        let product = (await this._productDatabase.QueryAsync(s => s.Name == productName)).FirstOrDefault();
+        let product = (await this._productDatabase.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
 
         if(!product)
-            return this.NotFound(`O produto ${productName} não existe`);
+            return this.NotFound(`O produto não existe`);
 
         if(await product.HasImageAsync())
             await this._productDatabase.DeleteImageAsync(product.Image!);
@@ -87,11 +141,31 @@ export default class ProductController extends ControllerBase
         return this.NoContent();
     }
 
-    @GET('image')
-    public GetImage(path : string) : void
+
+
+
+
+    @GET('get-image')
+    public async GetImageAsync(productId: string) : Promise<ActionResult>
     {
-        this.Request.sendFile(path);
+        if(!productId)
+            return this.BadRequest("Informe um produto");
+
+        let product = (await this._productDatabase.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
+
+        if(!product)
+            return this.NotFound(`O produto não existe`);
+
+        if(!await product.HasImageAsync())
+            return this.NotFound(`O produto não possui imagem`);
+        
+        return this.SendFile(product.Image!);            
     }
 
 
 }
+
+
+
+
+

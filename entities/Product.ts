@@ -1,7 +1,8 @@
 import FileService from "web_api_base/dist/file/FileService";
+import Entity from "./Entity";
 
-export default class Product
-{
+export default class Product extends Entity
+{   
     public Name : string;
     public Price : number;
     public Storage : number;
@@ -10,6 +11,7 @@ export default class Product
     
     constructor(name: string, price: number, storage: number, image? : string)
     {
+        super();
         this.Name = name;
         this.Price = price;
         this.Storage = storage;

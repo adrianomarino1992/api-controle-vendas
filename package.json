@@ -8,9 +8,13 @@
   "author": "adriano",
   "license": "ISC",
   "description": "",
-  "dependencies": {
-    "@types/node": "^22.5.5",
+  "dependencies": {    
+    "md5": "^2.3.0",
     "ts_linq_base": "^1.1.1",
-    "web_api_base": "^6.0.2"
+    "web_api_base": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/md5": "^2.3.5",
+    "@types/node": "^22.5.5"
   }
 }
