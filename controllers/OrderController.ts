@@ -1,4 +1,4 @@
-import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, File, RequestJson } from "web_api_base";
+import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, File, RequestJson, InjectTypeArgument } from "web_api_base";
 import Datababase from "../database/Database";
 import Order, { OrderItem, OrderStatus } from "../entities/Order";
 import Product from "../entities/Product";
@@ -11,32 +11,27 @@ import CreateTemplate from "../dto/CreateTemplate";
 @Validate()
 export default class OrderController extends ControllerBase {
 
-    private _orderDatabase: Datababase<Order>;
-    private _productDatabase: Datababase<Product>;
-    private _userDatabase: Datababase<User>;
+    @InjectTypeArgument(Order)
+    private _orderDatabase?: Datababase<Order>;
 
-    constructor() 
-    {
-        super();
-        this._orderDatabase = new Datababase(Order);
-        this._productDatabase = new Datababase(Product);
-        this._userDatabase = new Datababase(User);
-    }
-
+    @InjectTypeArgument(Product)
+    private _productDatabase?: Datababase<Product>;
+    
+    @InjectTypeArgument(User)
+    private _userDatabase?: Datababase<User>;    
 
 
     @GET('list-all')
     public async ListAllAsync(): Promise<ActionResult> 
     {
-        return this.OK((await this._orderDatabase.ReadAsync()).OrderByDescending(s => s.Date));
+        return this.OK((await this._orderDatabase!.ReadAsync()).OrderByDescending(s => s.Date));
     }
-
 
 
     @GET('list-opens')
     public async ListOpenAsync(): Promise<ActionResult> 
     {
-        return this.OK((await this._orderDatabase.QueryAsync(s => s.Active && !s.IsClosed())).OrderByDescending(s => s.Date));
+        return this.OK((await this._orderDatabase!.QueryAsync(s => s.Active && !s.IsClosed())).OrderByDescending(s => s.Date));
     }
 
 
@@ -44,7 +39,7 @@ export default class OrderController extends ControllerBase {
     @GET('list-closeds')
     public async ListClosedsAsync(): Promise<ActionResult> 
     {
-        return this.OK((await this._orderDatabase.QueryAsync(s => s.Active && s.IsClosed())).OrderByDescending(s => s.Date));
+        return this.OK((await this._orderDatabase!.QueryAsync(s => s.Active && s.IsClosed())).OrderByDescending(s => s.Date));
     }
     
 
@@ -54,12 +49,12 @@ export default class OrderController extends ControllerBase {
         if (!userId)
             return this.BadRequest("Informe um id");
 
-        let user = (await this._userDatabase.QueryAsync(s => s.Id == userId)).FirstOrDefault();
+        let user = (await this._userDatabase!.QueryAsync(s => s.Id == userId)).FirstOrDefault();
 
         if (!user)
             return this.NotFound(`O usuario não existe`);
 
-        return this.OK(await this._orderDatabase.QueryAsync(s => s.UserId == userId));
+        return this.OK(await this._orderDatabase!.QueryAsync(s => s.UserId == userId));
     }
 
 
@@ -75,7 +70,7 @@ export default class OrderController extends ControllerBase {
         if(validations.Any())
             return this.BadRequest(validations);
 
-        let produtos = await this._productDatabase.ReadAsync();
+        let produtos = await this._productDatabase!!.ReadAsync();
 
         let orderItens : OrderItem[] = [];      
         
@@ -89,7 +84,7 @@ export default class OrderController extends ControllerBase {
             
             productOnDatabase.Storage -= item.ProductQuantity;
 
-            this._productDatabase.UpdateAsync(productOnDatabase);
+            this._productDatabase!!.UpdateAsync(productOnDatabase);
 
             orderItens.Add(
                 new OrderItem(
@@ -105,7 +100,7 @@ export default class OrderController extends ControllerBase {
         let order : Order = new Order(orderDTO.UserId, new Date());
         order.Itens = orderItens;
         
-        await this._orderDatabase.AddAsync(order);
+        await this._orderDatabase!.AddAsync(order);
 
         return this.NoContent();
     }
@@ -122,12 +117,12 @@ export default class OrderController extends ControllerBase {
         if(validations.Any())
             return this.BadRequest(validations);
 
-        let orderONDatabase = (await this._orderDatabase.QueryAsync(s => s.Id == orderDTO.Id)).FirstOrDefault();
+        let orderONDatabase = (await this._orderDatabase!.QueryAsync(s => s.Id == orderDTO.Id)).FirstOrDefault();
 
         if(!orderONDatabase)
             return this.NotFound('O pedido não existe');
 
-        let produtos = await this._productDatabase.ReadAsync();
+        let produtos = await this._productDatabase!.ReadAsync();
 
         for(let item of orderONDatabase.Itens)
         {
@@ -136,7 +131,7 @@ export default class OrderController extends ControllerBase {
             if(productOnDatabase)
             {
                 productOnDatabase.Storage += item.Quantity; 
-                this._productDatabase.UpdateAsync(productOnDatabase);
+                this._productDatabase!.UpdateAsync(productOnDatabase);
             }
 
         }
@@ -152,7 +147,7 @@ export default class OrderController extends ControllerBase {
             
             productOnDatabase.Storage -= item.ProductQuantity;
 
-            this._productDatabase.UpdateAsync(productOnDatabase);
+            this._productDatabase!.UpdateAsync(productOnDatabase);
 
             orderItens.Add(
                 new OrderItem(
@@ -169,7 +164,7 @@ export default class OrderController extends ControllerBase {
         order.Id = orderDTO.Id;
         order.Itens = orderItens;
         
-        await this._orderDatabase.UpdateAsync(order);
+        await this._orderDatabase!.UpdateAsync(order);
 
         return this.NoContent();
 
@@ -185,16 +180,16 @@ export default class OrderController extends ControllerBase {
         if (!orderId)
             return this.BadRequest("Informe um id");
 
-        let order = (await this._orderDatabase.QueryAsync(s => s.Id == orderId)).FirstOrDefault();
+        let order = (await this._orderDatabase!.QueryAsync(s => s.Id == orderId)).FirstOrDefault();
 
         if (!order)
             return this.NotFound(`O usuario não existe`);
 
         order.Active = false;
 
-        await this._orderDatabase.UpdateAsync(order);
+        await this._orderDatabase!.UpdateAsync(order);
 
-        let produtos = await this._productDatabase.ReadAsync();
+        let produtos = await this._productDatabase!.ReadAsync();
 
         for(let item of order.Itens)
         {
@@ -203,7 +198,7 @@ export default class OrderController extends ControllerBase {
             if(productOnDatabase)
             {
                 productOnDatabase.Storage += item.Quantity; 
-                this._productDatabase.UpdateAsync(productOnDatabase);
+                this._productDatabase!.UpdateAsync(productOnDatabase);
             }    
         }
 
@@ -219,7 +214,7 @@ export default class OrderController extends ControllerBase {
         if (!orderId)
             return this.BadRequest("Informe um id");
 
-        let order = (await this._orderDatabase.QueryAsync(s => s.Id == orderId)).FirstOrDefault();
+        let order = (await this._orderDatabase!.QueryAsync(s => s.Id == orderId)).FirstOrDefault();
 
         if (!order)
             return this.NotFound(`O pedido não existe`);
@@ -228,12 +223,12 @@ export default class OrderController extends ControllerBase {
             return this.BadRequest("O pedido já está pago");
 
         if(await order.HasImageAsync())
-            await this._orderDatabase.DeleteImageAsync(order.PaymentImagePath!);
+            await this._orderDatabase!.DeleteImageAsync(order.PaymentImagePath!);
 
-        order.PaymentImagePath = await this._orderDatabase.SaveImageAsync(image.Path);
+        order.PaymentImagePath = await this._orderDatabase!.SaveImageAsync(image.Path);
         order.Status = OrderStatus.CLOSED;
 
-        await this._orderDatabase.UpdateAsync(order);
+        await this._orderDatabase!.UpdateAsync(order);
 
         return this.NoContent();
     }
@@ -248,7 +243,7 @@ export default class OrderController extends ControllerBase {
          if (!orderId)
             return this.BadRequest("Informe um id");
 
-        let order = (await this._orderDatabase.QueryAsync(s => s.Id == orderId)).FirstOrDefault();
+        let order = (await this._orderDatabase!.QueryAsync(s => s.Id == orderId)).FirstOrDefault();
 
         if (!order)
             return this.NotFound(`O pedido não existe`);

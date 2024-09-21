@@ -1,4 +1,4 @@
-import { ControllerBase, GET, ActionResult, Validate, POST, PUT, DELETE, File } from "web_api_base";
+import { ControllerBase, GET, ActionResult, Validate, POST, PUT, DELETE, File, InjectTypeArgument } from "web_api_base";
 import Product from "../entities/Product";
 import Datababase from "../database/Database";
 
@@ -8,29 +8,20 @@ import Datababase from "../database/Database";
 export default class ProductController extends ControllerBase 
 {
 
-    private _productDatabase: Datababase<Product>;
-
-    constructor() {
-        super();
-        this._productDatabase = new Datababase(Product);
-    }
-
-
-
+    @InjectTypeArgument(Product)
+    private _productDatabase?: Datababase<Product>;
 
     @GET('list-all')
     public async ListAllAsync(): Promise<ActionResult> 
     {
-        return this.OK((await this._productDatabase.ReadAsync()).OrderBy(s => s.Name));
+        return this.OK((await this._productDatabase!.ReadAsync()).OrderBy(s => s.Name));
     }
-
-
 
 
     @GET('list-active')
     public async ListActiveAsync(): Promise<ActionResult> 
     {
-        return this.OK((await this._productDatabase.QueryAsync(s => s.Active)).OrderBy(s => s.Name));
+        return this.OK((await this._productDatabase!.QueryAsync(s => s.Active)).OrderBy(s => s.Name));
     }
 
 
@@ -38,7 +29,7 @@ export default class ProductController extends ControllerBase
     @GET('list-inactive')
     public async ListInactiveAsync(): Promise<ActionResult> 
     {
-        return this.OK((await this._productDatabase.QueryAsync(s => !s.Active)).OrderBy(s => s.Name));
+        return this.OK((await this._productDatabase!.QueryAsync(s => !s.Active)).OrderBy(s => s.Name));
     }
 
     
@@ -53,12 +44,12 @@ export default class ProductController extends ControllerBase
         if(!product.Name || !product.Price)
             return this.BadRequest("O produto deve conter um nome e um preço");
 
-        let exists = (await this._productDatabase.QueryAsync(s => s.Name.toLowerCase() == product.Name.toLowerCase())).FirstOrDefault();
+        let exists = (await this._productDatabase!.QueryAsync(s => s.Name.toLowerCase() == product.Name.toLowerCase())).FirstOrDefault();
 
         if(exists)
             return this.BadRequest(`O produto ${product.Name} já existe`);
 
-        await this._productDatabase.AddAsync(product);
+        await this._productDatabase!.AddAsync(product);
 
         return this.NoContent();
     }
@@ -76,7 +67,7 @@ export default class ProductController extends ControllerBase
         if(!product.Name || !product.Price)
             return this.BadRequest("O produto deve conter um nome e um preço");
 
-        let exists = (await this._productDatabase.QueryAsync(
+        let exists = (await this._productDatabase!.QueryAsync(
             s => s.Name.toLowerCase() == product.Name.toLowerCase() &&
             s.Id != product.Id
         )).FirstOrDefault();
@@ -84,12 +75,12 @@ export default class ProductController extends ControllerBase
         if(exists)
             return this.BadRequest(`O produto ${product.Name} já existe`);
 
-        exists = (await this._productDatabase.QueryAsync(s => s.Id == product.Id)).FirstOrDefault();
+        exists = (await this._productDatabase!.QueryAsync(s => s.Id == product.Id)).FirstOrDefault();
 
         if(!exists)
             return this.BadRequest(`O produto ${product.Name} não existe`);
 
-        await this._productDatabase.UpdateAsync(product);
+        await this._productDatabase!.UpdateAsync(product);
 
         return this.NoContent();
     }
@@ -104,14 +95,14 @@ export default class ProductController extends ControllerBase
         if(!productId)
             return this.BadRequest("Informe um produto");
 
-        let product = (await this._productDatabase.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
+        let product = (await this._productDatabase!.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
 
         if(!product)
             return this.NotFound(`O produto não existe`);
 
         product.Active = false;
 
-        await this._productDatabase.UpdateAsync(product);
+        await this._productDatabase!.UpdateAsync(product);
 
         return this.NoContent();
     }
@@ -126,17 +117,17 @@ export default class ProductController extends ControllerBase
         if(!productId)
             return this.BadRequest("Informe um produto");
 
-        let product = (await this._productDatabase.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
+        let product = (await this._productDatabase!.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
 
         if(!product)
             return this.NotFound(`O produto não existe`);
 
         if(await product.HasImageAsync())
-            await this._productDatabase.DeleteImageAsync(product.Image!);
+            await this._productDatabase!.DeleteImageAsync(product.Image!);
 
-        product.Image = await this._productDatabase.SaveImageAsync(image.Path);
+        product.Image = await this._productDatabase!.SaveImageAsync(image.Path);
 
-        await this._productDatabase.UpdateAsync(product);
+        await this._productDatabase!.UpdateAsync(product);
 
         return this.NoContent();
     }
@@ -151,7 +142,7 @@ export default class ProductController extends ControllerBase
         if(!productId)
             return this.BadRequest("Informe um produto");
 
-        let product = (await this._productDatabase.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
+        let product = (await this._productDatabase!.QueryAsync(s => s.Id.toLowerCase() == productId.toLowerCase())).FirstOrDefault();
 
         if(!product)
             return this.NotFound(`O produto não existe`);

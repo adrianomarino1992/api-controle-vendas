@@ -1,5 +1,7 @@
 
 import { Application, IApplicationConfiguration } from "web_api_base";
+import Datababase from "./database/Database";
+import Entity from "./entities/Entity";
 
 
 export default class App extends Application
@@ -15,6 +17,11 @@ export default class App extends Application
         this.UseCors();     
             
         await this.UseControllersAsync();
+
+        appConfig.AddGenericScoped(Datababase, undefined, undefined, t => 
+        {
+            return new Datababase(t as new(...args: any[]) => Entity);
+        });
 
         if(appConfig.DEBUG)
             this.CreateDocumentation();
