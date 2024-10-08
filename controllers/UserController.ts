@@ -1,7 +1,7 @@
-import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, InjectTypeArgument } from "web_api_base";
+import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, InjectTypeArgument, File } from "web_api_base";
 import Datababase from "../database/Database";
 import User from "../entities/User";
-
+import Path from 'path';
 
 
 @Validate()
@@ -35,7 +35,16 @@ export default class UserController extends ControllerBase {
 
     
 
+    @GET('login')
+    public async LoginAsync(username: string, password : string) : Promise<ActionResult>
+    {
+        let user = (await this._userDatabase!.QueryAsync(s => s.Login == username && s.Password == password)).FirstOrDefault();
 
+        if(!user)
+            return this.NotFound();
+
+        return this.OK(user);
+    }
 
 
 
@@ -60,7 +69,7 @@ export default class UserController extends ControllerBase {
 
         await this._userDatabase!.AddAsync(user);
 
-        return this.NoContent();
+        return this.OK({Id: user.Id});
     }
 
 
@@ -98,6 +107,8 @@ export default class UserController extends ControllerBase {
         if (!exists)
             return this.BadRequest(`O usuario ${user.Name} não existe`);
 
+        user.Image = exists.Image;
+
         await this._userDatabase!.UpdateAsync(user);
 
         return this.NoContent();
@@ -124,6 +135,68 @@ export default class UserController extends ControllerBase {
         await this._userDatabase!.UpdateAsync(user);
 
         return this.NoContent();
+    }
+
+
+
+    
+
+    @POST('set-image')
+    public async UpdateImageAsync(userId: string, image: File) : Promise<ActionResult>
+    {
+        if(!userId)
+            return this.BadRequest("Informe um usuario");
+
+        let user = (await this._userDatabase!.QueryAsync(s => s.Id.toLowerCase() == userId.toLowerCase())).FirstOrDefault();
+
+        if(!user)
+            return this.NotFound(`O usuario não existe`);
+
+        if(await user.HasImageAsync())
+            await this._userDatabase!.DeleteImageAsync(user.Image!);
+
+        user.Image = await this._userDatabase!.SaveImageAsync(image.Path);
+
+        await this._userDatabase!.UpdateAsync(user);
+
+        return this.NoContent();
+    }
+
+
+
+
+
+    @GET('get-image')
+    public async GetImageAsync(userId: string) : Promise<ActionResult>
+    {
+        if(!userId)
+            return this.BadRequest("Informe um usuario");
+
+        let user = (await this._userDatabase!.QueryAsync(s => s.Id.toLowerCase() == userId.toLowerCase())).FirstOrDefault();
+
+        if(!user)
+            return this.NotFound(`O usuario não existe`);
+
+        if(!await user.HasImageAsync())
+            return this.SendFile(Path.join(__dirname, "..", "assets", "default.png"));
+        
+        return this.SendFile(user.Image!);            
+    }
+
+
+
+    
+    @GET('get-default-image')
+    public async GetDefaultImageAsync() : Promise<ActionResult>
+    {
+        return this.SendFile(Path.join(__dirname, "..", "assets", "default.png"));           
+    }
+
+    
+    @GET('get-new-image')
+    public async GetNewImageAsync() : Promise<ActionResult>
+    {
+        return this.SendFile(Path.join(__dirname, "..", "assets", "new.png"));           
     }
 
 

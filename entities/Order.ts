@@ -1,4 +1,3 @@
-import FileService from "web_api_base/dist/file/FileService";
 import Entity from "./Entity";
 
 export default class Order extends Entity
@@ -6,37 +5,30 @@ export default class Order extends Entity
     public UserId: string; 
     public Date : Date;
     public Itens : OrderItem[];
-    public Status : OrderStatus;
     public PaymentDate? : Date;
-    public PaymentImagePath? : string;
+    public PaymentId? : string;
     public Active : boolean; 
+    public UserBalance : number;
 
     public constructor(userId : string, date: Date)
     {        
         super();
         this.UserId = userId;
-        this.Date = date;
-        this.Status = OrderStatus.OPEN;
+        this.Date = date;        
         this.PaymentDate = undefined;
-        this.PaymentImagePath = undefined; 
+        this.PaymentId = undefined; 
         this.Itens = [];
         this.Active = true;
+        this.UserBalance = 0;
     }
 
     public IsClosed() : boolean
     {
-        return this.Status == OrderStatus.CLOSED;
+        return this.PaymentDate != undefined && this.PaymentId != undefined;
     }
 
-    public async HasImageAsync(): Promise<boolean>
-    {
-        if(!this.PaymentImagePath)
-            return false;
-
-        return await new FileService().FileExistsAsync(this.PaymentImagePath);
-    }
+    
 }
-
 
 export class OrderItem extends Entity
 {
@@ -54,10 +46,4 @@ export class OrderItem extends Entity
         this.Price = price;
         this.Quantity = quantity;        
     }
-}
-
-export enum OrderStatus 
-{
-    OPEN = 'OPEN', 
-    CLOSED = 'CLOSED'
 }

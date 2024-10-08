@@ -1,6 +1,7 @@
 import { ControllerBase, GET, ActionResult, Validate, POST, PUT, DELETE, File, InjectTypeArgument } from "web_api_base";
 import Product from "../entities/Product";
 import Datababase from "../database/Database";
+import Path from 'path';
 
 
 
@@ -51,7 +52,7 @@ export default class ProductController extends ControllerBase
 
         await this._productDatabase!.AddAsync(product);
 
-        return this.NoContent();
+        return this.OK({Id: product.Id});
     }
 
 
@@ -79,6 +80,8 @@ export default class ProductController extends ControllerBase
 
         if(!exists)
             return this.BadRequest(`O produto ${product.Name} não existe`);
+
+        product.Image = exists.Image;
 
         await this._productDatabase!.UpdateAsync(product);
 
@@ -148,10 +151,24 @@ export default class ProductController extends ControllerBase
             return this.NotFound(`O produto não existe`);
 
         if(!await product.HasImageAsync())
-            return this.NotFound(`O produto não possui imagem`);
+            return this.SendFile(Path.join(__dirname, "..", "assets", "default.png"));
         
         return this.SendFile(product.Image!);            
     }
+
+    
+    @GET('get-default-image')
+    public async GetDefaultImageAsync() : Promise<ActionResult>
+    {
+        return this.SendFile(Path.join(__dirname, "..", "assets", "default.png"));           
+    }
+
+    @GET('get-new-image')
+    public async GetNewImageAsync() : Promise<ActionResult>
+    {
+        return this.SendFile(Path.join(__dirname, "..", "assets", "new.png"));           
+    }
+
 
 
 }

@@ -104,11 +104,9 @@ export default class Datababase<T extends Entity>
 
     public async SaveImageAsync(filePath : string) : Promise<string>
     {
-        let pathInfo = Path.parse(filePath);
+        let pathInfo = Path.parse(filePath);        
 
-        let filesInFolder = await this._fileSystem.GetAllFilesAsync(this._imgFolder);
-
-        let newName = Path.join(this._imgFolder, `img_${filesInFolder.Count()}${pathInfo.ext}`);
+        let newName = Path.join(this._imgFolder, `img_${new Date().getTime()}${pathInfo.ext}`);
 
         await this._fileSystem.CopyAsync(filePath, newName);
 
@@ -168,15 +166,19 @@ export default class Datababase<T extends Entity>
     {
         if(!json)
             return [];
+
+        let itens : T[] = [];
     
-           let rows = JSON.parse(json) as Array<any>;
+        let rows = JSON.parse(json) as Array<any>;
     
-           rows.forEach(r => 
-            {
-                r.__proto__ = this._cTor.prototype;
-            });
+        rows.forEach(r => 
+        {
+            let e = Reflect.construct(this._cTor, []);
+            Object.assign(e, r);
+            itens.Add(e);        
+        });
     
-            return rows.Select(s => s as T);
+        return itens;
     } 
 
 

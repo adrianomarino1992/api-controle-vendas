@@ -1,4 +1,6 @@
+import { CreateMetada } from "web_api_base";
 import CreateOrderDTO, { CreateOrderItemDTO } from "./CreateOrderDTO";
+
 
 
 export default class UpdateOrderDTO extends CreateOrderDTO {
@@ -17,7 +19,7 @@ export default class UpdateOrderDTO extends CreateOrderDTO {
         if (!this.Id)
             validationResult.Add(`O id do pedido é obrigatorio`);
 
-        validationResult.AddRange(this.Itens.SelectMany(s => s.IsValid()));
+        validationResult.AddRange(super.IsValid());
 
         return validationResult;
     }

@@ -15,6 +15,8 @@ export default class App extends Application
     {  
         
         this.UseCors();     
+
+        appConfig.Host = '192.168.15.144';
             
         await this.UseControllersAsync();
 

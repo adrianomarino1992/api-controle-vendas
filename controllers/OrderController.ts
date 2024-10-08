@@ -1,11 +1,13 @@
 import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, File, RequestJson, InjectTypeArgument } from "web_api_base";
 import Datababase from "../database/Database";
-import Order, { OrderItem, OrderStatus } from "../entities/Order";
+import Order, { OrderItem } from "../entities/Order";
 import Product from "../entities/Product";
 import User from "../entities/User";
+import Payment from "../entities/Payment";
 import CreateOrderDTO from "../dto/order/CreateOrderDTO";
 import UpdateOrderDTO from "../dto/order/UpdateOrderDTO";
 import CreateTemplate from "../dto/CreateTemplate";
+import { HistoryDTO } from "../dto/order/HistoryDTO";
 
 
 @Validate()
@@ -19,6 +21,9 @@ export default class OrderController extends ControllerBase {
     
     @InjectTypeArgument(User)
     private _userDatabase?: Datababase<User>;    
+
+    @InjectTypeArgument(Payment)
+    private _paymentDatabase?: Datababase<Payment>;  
 
 
     @GET('list-all')
@@ -34,14 +39,76 @@ export default class OrderController extends ControllerBase {
         return this.OK((await this._orderDatabase!.QueryAsync(s => s.Active && !s.IsClosed())).OrderByDescending(s => s.Date));
     }
 
-
-
+    
     @GET('list-closeds')
     public async ListClosedsAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._orderDatabase!.QueryAsync(s => s.Active && s.IsClosed())).OrderByDescending(s => s.Date));
     }
+
     
+    @GET('history-by-user')
+    public async GetHistoryByUser(userId: string): Promise<ActionResult> 
+    {
+        if (!userId)
+            return this.BadRequest("Informe um id");
+
+        let user = (await this._userDatabase!.QueryAsync(s => s.Id == userId)).FirstOrDefault();
+
+        if (!user)
+            return this.NotFound(`O usuario não existe`);
+
+        let orders = await this._orderDatabase!.QueryAsync(s => s.UserId == userId);
+        let payments = await this._paymentDatabase!.QueryAsync(s => s.UserId == userId);
+
+        let itensOrdeneds : any[] = [];
+
+        itensOrdeneds.AddRange(orders);
+        itensOrdeneds.AddRange(payments);
+
+        itensOrdeneds = itensOrdeneds.OrderBy(s => {
+
+            if(s instanceof Order)
+                return new Date(s.Date);
+            else
+                return new Date((s as Payment).Date);
+        });
+
+        let data : HistoryDTO[] = [];
+
+        for(let i of itensOrdeneds)
+        {
+            let dto = new HistoryDTO();
+            if(i instanceof Order)
+            {
+                dto.Date = i.Date;
+                dto.PaymentDate = i.PaymentDate;
+                dto.Id = i.Id;
+                dto.IsPayment = false;
+                dto.ProdutcId = i.Itens[0].ProductId;
+                dto.ProductName = i.Itens[0].ProductName;
+                dto.ProdutcPrice = i.Itens[0].Price;
+                dto.UserBalance = i.UserBalance;
+            }
+            else 
+            {
+                let p = i as Payment;
+                dto.PaymentDate = p.Date;
+                dto.Date = p.Date;
+                dto.Id = p.Id;
+                dto.IsPayment = true;
+                dto.UserBalance = 0;                
+            }
+
+            data.Add(dto);
+            
+        }
+
+        return this.OK(data);
+    }
+    
+
+
 
     @GET('list-by-user')
     public async ListBYUserAsync(userId: string): Promise<ActionResult> 
@@ -54,7 +121,7 @@ export default class OrderController extends ControllerBase {
         if (!user)
             return this.NotFound(`O usuario não existe`);
 
-        return this.OK(await this._orderDatabase!.QueryAsync(s => s.UserId == userId));
+        return this.OK((await this._orderDatabase!.QueryAsync(s => s.UserId == userId)).OrderBy(s => s.Date));
     }
 
 
@@ -73,6 +140,11 @@ export default class OrderController extends ControllerBase {
         let produtos = await this._productDatabase!!.ReadAsync();
 
         let orderItens : OrderItem[] = [];      
+
+        let user = (await this._userDatabase?.QueryAsync(s => s.Id == orderDTO.UserId))!.FirstOrDefault();
+
+        if(!user)
+            return this.BadRequest("Usuario não existe");        
         
 
         for(let item of orderDTO.Itens)
@@ -97,10 +169,14 @@ export default class OrderController extends ControllerBase {
 
         }
 
+        user.Balance += orderItens.Sum(s => s.Price);
+
         let order : Order = new Order(orderDTO.UserId, new Date());
         order.Itens = orderItens;
+        order.UserBalance = user.Balance;
         
         await this._orderDatabase!.AddAsync(order);
+        await this._userDatabase?.UpdateAsync(user);
 
         return this.NoContent();
     }
@@ -124,6 +200,11 @@ export default class OrderController extends ControllerBase {
 
         let produtos = await this._productDatabase!.ReadAsync();
 
+        let user = (await this._userDatabase?.QueryAsync(s => s.Id == orderDTO.UserId))!.FirstOrDefault();
+
+        if(!user)
+            return this.BadRequest("Usuario não existe");  
+
         for(let item of orderONDatabase.Itens)
         {
             let productOnDatabase = produtos.FirstOrDefault(s => s.Id == item.ProductId);
@@ -131,6 +212,7 @@ export default class OrderController extends ControllerBase {
             if(productOnDatabase)
             {
                 productOnDatabase.Storage += item.Quantity; 
+                user.Balance -= item.Price;
                 this._productDatabase!.UpdateAsync(productOnDatabase);
             }
 
@@ -146,6 +228,7 @@ export default class OrderController extends ControllerBase {
                 return this.BadRequest(`O produto ${item.ProductName} não existe`);            
             
             productOnDatabase.Storage -= item.ProductQuantity;
+            user.Balance += productOnDatabase.Price;
 
             this._productDatabase!.UpdateAsync(productOnDatabase);
 
@@ -163,8 +246,9 @@ export default class OrderController extends ControllerBase {
         let order : Order = new Order(orderDTO.UserId, new Date());
         order.Id = orderDTO.Id;
         order.Itens = orderItens;
-        
+        order.UserBalance = user.Balance;
         await this._orderDatabase!.UpdateAsync(order);
+        await this._userDatabase?.UpdateAsync(user);
 
         return this.NoContent();
 
@@ -185,9 +269,13 @@ export default class OrderController extends ControllerBase {
         if (!order)
             return this.NotFound(`O usuario não existe`);
 
-        order.Active = false;
+        let user = (await this._userDatabase?.QueryAsync(s => s.Id == order.UserId))!.FirstOrDefault();
 
-        await this._orderDatabase!.UpdateAsync(order);
+        if(!user)
+            return this.BadRequest("Usuario não existe");  
+
+        order.Active = false;
+        
 
         let produtos = await this._productDatabase!.ReadAsync();
 
@@ -198,9 +286,15 @@ export default class OrderController extends ControllerBase {
             if(productOnDatabase)
             {
                 productOnDatabase.Storage += item.Quantity; 
-                this._productDatabase!.UpdateAsync(productOnDatabase);
+                user.Balance -= item.Price;
+                await this._productDatabase!.UpdateAsync(productOnDatabase);
             }    
         }
+
+        order.UserBalance = user.Balance;
+        await this._orderDatabase!.UpdateAsync(order);
+
+        await this._userDatabase?.UpdateAsync(user);
 
         return this.NoContent();
     }
@@ -209,49 +303,92 @@ export default class OrderController extends ControllerBase {
     
 
     @POST('pay-order')
-    public async PayOrderAsync(orderId: string, image: File) : Promise<ActionResult>
+    public async PayOrderAsync(payment : Payment) : Promise<ActionResult>
     {
-        if (!orderId)
-            return this.BadRequest("Informe um id");
+        if (!payment.UserId)
+            return this.BadRequest("Informe o usuario");
 
-        let order = (await this._orderDatabase!.QueryAsync(s => s.Id == orderId)).FirstOrDefault();
+        payment.Date = new Date();
 
-        if (!order)
-            return this.NotFound(`O pedido não existe`);
+        let user = (await this._userDatabase!.QueryAsync(s => s.Id == payment.UserId)).FirstOrDefault();
 
-        if(order.IsClosed() && await order.HasImageAsync())
-            return this.BadRequest("O pedido já está pago");
+        if (!user)
+            return this.NotFound(`O usaurio não existe`);
 
-        if(await order.HasImageAsync())
-            await this._orderDatabase!.DeleteImageAsync(order.PaymentImagePath!);
+        let orders = await this._orderDatabase!.QueryAsync(s => s.UserId == payment.UserId && !s.PaymentId);
 
-        order.PaymentImagePath = await this._orderDatabase!.SaveImageAsync(image.Path);
-        order.Status = OrderStatus.CLOSED;
+        user.Balance = 0;
 
-        await this._orderDatabase!.UpdateAsync(order);
+        await this._paymentDatabase?.AddAsync(payment);
+        await this._userDatabase?.UpdateAsync(user);
+
+        for(let o of orders)
+        {
+            o.PaymentDate = new Date();
+            o.PaymentId = payment.Id;
+            await this._orderDatabase?.UpdateAsync(o);
+        }
+
+        return this.OK({Id : payment.Id});
+    }
+
+
+    @POST('set-image')
+    public async UpdateImageAsync(paymentId: string, image: File) : Promise<ActionResult>
+    {
+        if(!paymentId)
+            return this.BadRequest("Informe o id do pagamento");
+
+        let payment = (await this._paymentDatabase!.QueryAsync(s => s.Id.toLowerCase() == paymentId.toLowerCase())).FirstOrDefault();
+
+        if(!payment)
+            return this.NotFound(`O pagamento não existe`);
+
+        if(await payment.HasImageAsync())
+            await this._paymentDatabase!.DeleteImageAsync(payment.ImagePath!);
+
+        payment.ImagePath = await this._paymentDatabase!.SaveImageAsync(image.Path);
+
+        await this._paymentDatabase!.UpdateAsync(payment);
 
         return this.NoContent();
     }
 
 
 
-
-
     @GET('get-image')
-    public async GetImageAsync(orderId: string) : Promise<ActionResult>
+    public async GetImageAsync(paymentId: string) : Promise<ActionResult>
     {
-         if (!orderId)
+         if (!paymentId)
             return this.BadRequest("Informe um id");
 
-        let order = (await this._orderDatabase!.QueryAsync(s => s.Id == orderId)).FirstOrDefault();
+        let payment = (await this._paymentDatabase!.QueryAsync(s => s.Id == paymentId)).FirstOrDefault();
 
-        if (!order)
-            return this.NotFound(`O pedido não existe`);
+        if (!payment)
+            return this.NotFound(`O pagamento não existe`);
 
-        if(!await order.HasImageAsync())
-            return this.NotFound("O pedido não possui imagens");
+        if(!await payment.HasImageAsync())
+            return this.NotFound("O pagamento não possui imagens");
         
-        return this.SendFile(order.PaymentImagePath!);            
+        return this.SendFile(payment.ImagePath!);            
+    }
+
+    
+    @GET('download-image')
+    public async DownloadImageAsync(paymentId: string) : Promise<ActionResult>
+    {
+         if (!paymentId)
+            return this.BadRequest("Informe um id");
+
+        let payment = (await this._paymentDatabase!.QueryAsync(s => s.Id == paymentId)).FirstOrDefault();
+
+        if (!payment)
+            return this.NotFound(`O pagamento não existe`);
+
+        if(!await payment.HasImageAsync())
+            return this.NotFound("O pagamento não possui imagens");
+        
+        return this.DownloadFile(payment.ImagePath!);            
     }
 
 

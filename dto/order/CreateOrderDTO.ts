@@ -1,8 +1,10 @@
+import { ArrayElementType } from "web_api_base";
 import DTO from "../DTO";
 
 export default class CreateOrderDTO extends DTO
 {
     public UserId: string;
+    
     public Itens : CreateOrderItemDTO[];
     
     constructor(userId : string, itens: CreateOrderItemDTO[])
