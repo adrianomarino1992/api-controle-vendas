@@ -1,4 +1,4 @@
-import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, File, RequestJson, InjectTypeArgument } from "web_api_base";
+import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, File, RequestJson, InjectTypeArgument, UseBefore, ControllerHeader, RunBefore } from "web_api_base";
 import Datababase from "../database/Database";
 import Order, { OrderItem } from "../entities/Order";
 import Product from "../entities/Product";
@@ -8,9 +8,12 @@ import CreateOrderDTO from "../dto/order/CreateOrderDTO";
 import UpdateOrderDTO from "../dto/order/UpdateOrderDTO";
 import CreateTemplate from "../dto/CreateTemplate";
 import { HistoryDTO } from "../dto/order/HistoryDTO";
+import AuthorizationMidleware, { OnlySuperUsers } from "../auth/AuthorizationMidleware";
 
 
 @Validate()
+@UseBefore(AuthorizationMidleware)
+@ControllerHeader('api-key')
 export default class OrderController extends ControllerBase {
 
     @InjectTypeArgument(Order)
@@ -27,6 +30,7 @@ export default class OrderController extends ControllerBase {
 
 
     @GET('list-all')
+    @RunBefore(OnlySuperUsers)
     public async ListAllAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._orderDatabase!.ReadAsync()).OrderByDescending(s => s.Date));
@@ -34,6 +38,7 @@ export default class OrderController extends ControllerBase {
 
 
     @GET('list-opens')
+    @RunBefore(OnlySuperUsers)
     public async ListOpenAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._orderDatabase!.QueryAsync(s => s.Active && !s.IsClosed())).OrderByDescending(s => s.Date));
@@ -41,6 +46,7 @@ export default class OrderController extends ControllerBase {
 
     
     @GET('list-closeds')
+    @RunBefore(OnlySuperUsers)
     public async ListClosedsAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._orderDatabase!.QueryAsync(s => s.Active && s.IsClosed())).OrderByDescending(s => s.Date));
@@ -186,6 +192,7 @@ export default class OrderController extends ControllerBase {
 
 
     @PUT('update')
+    @RunBefore(OnlySuperUsers)
     public async UpdateAsync(orderDTO: UpdateOrderDTO): Promise<ActionResult> 
     {   
         let validations = orderDTO.IsValid();
@@ -259,6 +266,7 @@ export default class OrderController extends ControllerBase {
 
 
     @DELETE('delete')
+    @RunBefore(OnlySuperUsers)
     public async DeleteAsync(orderId: string): Promise<ActionResult> 
     {
         if (!orderId)
@@ -318,6 +326,7 @@ export default class OrderController extends ControllerBase {
         let orders = await this._orderDatabase!.QueryAsync(s => s.UserId == payment.UserId && !s.PaymentId);
 
         user.Balance = 0;
+        user.LastPaymante = new Date();
 
         await this._paymentDatabase?.AddAsync(payment);
         await this._userDatabase?.UpdateAsync(user);
@@ -356,7 +365,7 @@ export default class OrderController extends ControllerBase {
 
 
 
-    @GET('get-image')
+    @GET('static/get-image')
     public async GetImageAsync(paymentId: string) : Promise<ActionResult>
     {
          if (!paymentId)
@@ -374,7 +383,7 @@ export default class OrderController extends ControllerBase {
     }
 
     
-    @GET('download-image')
+    @GET('static/download-image')
     public async DownloadImageAsync(paymentId: string) : Promise<ActionResult>
     {
          if (!paymentId)

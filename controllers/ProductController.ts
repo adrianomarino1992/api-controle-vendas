@@ -1,11 +1,13 @@
-import { ControllerBase, GET, ActionResult, Validate, POST, PUT, DELETE, File, InjectTypeArgument } from "web_api_base";
+import { ControllerBase, GET, ActionResult, Validate, POST, PUT, DELETE, File, InjectTypeArgument, ControllerHeader, UseBefore, RunBefore } from "web_api_base";
 import Product from "../entities/Product";
 import Datababase from "../database/Database";
 import Path from 'path';
-
+import AuthorizationMidleware, { OnlySuperUsers } from "../auth/AuthorizationMidleware";
 
 
 @Validate()
+@UseBefore(AuthorizationMidleware)
+@ControllerHeader('api-key')
 export default class ProductController extends ControllerBase 
 {
 
@@ -13,6 +15,7 @@ export default class ProductController extends ControllerBase
     private _productDatabase?: Datababase<Product>;
 
     @GET('list-all')
+    @RunBefore(OnlySuperUsers)
     public async ListAllAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._productDatabase!.ReadAsync()).OrderBy(s => s.Name));
@@ -28,6 +31,7 @@ export default class ProductController extends ControllerBase
 
 
     @GET('list-inactive')
+    @RunBefore(OnlySuperUsers)
     public async ListInactiveAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._productDatabase!.QueryAsync(s => !s.Active)).OrderBy(s => s.Name));
@@ -37,6 +41,7 @@ export default class ProductController extends ControllerBase
 
 
     @POST('create')
+    @RunBefore(OnlySuperUsers)
     public async InsertAsync(product: Product): Promise<ActionResult>
     {
         if(!product)
@@ -60,6 +65,7 @@ export default class ProductController extends ControllerBase
 
 
     @PUT('update')
+    @RunBefore(OnlySuperUsers)
     public async UpdateAsync(product: Product): Promise<ActionResult>
     {
         if(!product)
@@ -93,6 +99,7 @@ export default class ProductController extends ControllerBase
 
 
     @DELETE('delete')
+    @RunBefore(OnlySuperUsers)
     public async DeleteAsync(productId: string): Promise<ActionResult>
     {
         if(!productId)
@@ -115,6 +122,7 @@ export default class ProductController extends ControllerBase
 
 
     @POST('set-image')
+    @RunBefore(OnlySuperUsers)
     public async UpdateImageAsync(productId: string, image: File) : Promise<ActionResult>
     {
         if(!productId)
@@ -139,7 +147,7 @@ export default class ProductController extends ControllerBase
 
 
 
-    @GET('get-image')
+    @GET('static/get-image')
     public async GetImageAsync(productId: string) : Promise<ActionResult>
     {
         if(!productId)
@@ -157,13 +165,13 @@ export default class ProductController extends ControllerBase
     }
 
     
-    @GET('get-default-image')
+    @GET('static/get-default-image')
     public async GetDefaultImageAsync() : Promise<ActionResult>
     {
         return this.SendFile(Path.join(__dirname, "..", "assets", "default.png"));           
     }
 
-    @GET('get-new-image')
+    @GET('static/get-new-image')
     public async GetNewImageAsync() : Promise<ActionResult>
     {
         return this.SendFile(Path.join(__dirname, "..", "assets", "new.png"));           

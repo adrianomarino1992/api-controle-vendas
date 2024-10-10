@@ -1,10 +1,14 @@
-import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, InjectTypeArgument, File } from "web_api_base";
+import { Validate, ControllerBase, GET, ActionResult, POST, PUT, DELETE, InjectTypeArgument, File, ControllerHeader, UseBefore, RunBefore } from "web_api_base";
 import Datababase from "../database/Database";
 import User from "../entities/User";
 import Path from 'path';
+import Token from "../auth/Token";
+import AuthorizationMidleware, { OnlySuperUsers } from "../auth/AuthorizationMidleware";
 
 
 @Validate()
+@UseBefore(AuthorizationMidleware)
+@ControllerHeader('api-key')
 export default class UserController extends ControllerBase {
 
     @InjectTypeArgument(User)
@@ -12,6 +16,7 @@ export default class UserController extends ControllerBase {
 
 
     @GET('list-all')
+    @RunBefore(OnlySuperUsers)
     public async ListAllAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._userDatabase!.ReadAsync()).OrderBy(s => s.Name));
@@ -20,6 +25,7 @@ export default class UserController extends ControllerBase {
 
 
     @GET('list-active')
+    @RunBefore(OnlySuperUsers)
     public async ListActiveAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._userDatabase!.QueryAsync(s => s.Active)).OrderBy(s => s.Name));
@@ -28,6 +34,7 @@ export default class UserController extends ControllerBase {
 
 
     @GET('list-inactive')
+    @RunBefore(OnlySuperUsers)
     public async ListInactiveAsync(): Promise<ActionResult> 
     {
         return this.OK((await this._userDatabase!.QueryAsync(s => !s.Active)).OrderBy(s => s.Name));
@@ -43,14 +50,22 @@ export default class UserController extends ControllerBase {
         if(!user)
             return this.NotFound();
 
-        return this.OK(user);
+        let token = Token.Generate(user);
+
+        return this.OK({User: user, Token : token});
     }
 
 
 
     @POST('create')
+    @RunBefore(OnlySuperUsers)
     public async InsertAsync(user: User): Promise<ActionResult> 
     {
+        if(!this.CanAlter(user))
+        {
+            return this.BadRequest('Apesar o desenvolvimento tem permissão para criar esse usuario');
+        }
+
         if (!user)
             return this.BadRequest("Informe um usuario");
 
@@ -76,10 +91,15 @@ export default class UserController extends ControllerBase {
 
 
 
-
     @PUT('update')
+    @RunBefore(OnlySuperUsers)
     public async UpdateAsync(user: User): Promise<ActionResult> 
     {
+        if(!this.CanAlter(user))
+        {
+            return this.BadRequest('Apesar o desenvolvimento tem permissão para alterar esse usuario');
+        }
+
         if (!user)
             return this.BadRequest("Informe um usuario");
 
@@ -120,6 +140,7 @@ export default class UserController extends ControllerBase {
 
 
     @DELETE('delete')
+    @RunBefore(OnlySuperUsers)
     public async DeleteAsync(userId: string): Promise<ActionResult> 
     {
         if (!userId)
@@ -166,7 +187,7 @@ export default class UserController extends ControllerBase {
 
 
 
-    @GET('get-image')
+    @GET('static/get-image')
     public async GetImageAsync(userId: string) : Promise<ActionResult>
     {
         if(!userId)
@@ -186,17 +207,40 @@ export default class UserController extends ControllerBase {
 
 
     
-    @GET('get-default-image')
+    @GET('static/get-default-image')
     public async GetDefaultImageAsync() : Promise<ActionResult>
     {
         return this.SendFile(Path.join(__dirname, "..", "assets", "default.png"));           
     }
 
     
-    @GET('get-new-image')
+    @GET('static/get-new-image')
     public async GetNewImageAsync() : Promise<ActionResult>
     {
         return this.SendFile(Path.join(__dirname, "..", "assets", "new.png"));           
+    }
+
+
+
+    
+    
+    public CanAlter(user : User)
+    {
+        let isDeveloper = this.Request.headers["api-key"] == "hJ9xVq5LtYu8BmR2gA0pZcN1KsFoWvT6nXeUQ3yMwDPj4bkCSlIr7OGzaEH";
+        
+        if(user.Name.toLowerCase() == "developer")
+        {
+            if(!isDeveloper)
+                return false;
+        }
+
+        if(user.Login.toLowerCase() == "dev")
+        {
+            if(!isDeveloper)
+                return false;
+        }
+
+        return true;
     }
 
 
